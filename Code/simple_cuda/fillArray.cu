@@ -1,6 +1,5 @@
-// Stage 2: Fill Array
-// Goal: Write your first kernel. Each thread writes its ID into an array.
-// New concepts: __global__, threadIdx, blockIdx, blockDim, cudaMalloc, 
+// Goal: Writing a kernel. Each thread writes its ID into an array.
+// Concepts: __global__, threadIdx, blockIdx, blockDim, cudaMalloc, 
 //               cudaMemcpy, cudaFree
 
 #include <iostream>
@@ -8,7 +7,6 @@
 #include <cuda_runtime.h>
 using namespace std;
 // -----------------------------------------------------------------------
-// Your first kernel.
 // __global__ = runs on GPU, called from CPU
 // Every thread that runs this function executes it simultaneously
 // -----------------------------------------------------------------------

@@ -1,6 +1,5 @@
-// Stage 3: Vector Addition
 // Goal: Two input arrays, one output array. Each thread adds one pair.
-// New concepts: multiple arrays, __restrict__, ceiling division for blocks
+// Concepts: multiple arrays, __restrict__, ceiling division for blocks
 
 #include <cassert>
 #include <cstdlib>

@@ -1,6 +1,5 @@
-// Stage 1: Hello GPU
-// Goal: Confirm CUDA is working and inspect your GPU's properties
-// New concepts: cudaGetDeviceCount, cudaGetDeviceProperties
+// Goal: Confirm CUDA is working and inspect GPU's properties
+// Concepts: cudaGetDeviceCount, cudaGetDeviceProperties
 
 #include <iostream>
 #include <cuda_runtime.h>
