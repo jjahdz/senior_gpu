@@ -1,8 +1,14 @@
 /*
 grdient descent linear regression
 
+
+
 CODE: Training a linear regression model using gradient descent 
-GOAL: To learn the parameters w and b of the linear model y_hat = 3x + 2 from 
+GOAL: this code applies gradient descent through the trainig of a linear regression model (y = wx + b or y = 3x+2)
+to find the accurate w and b, we use parralle computing through reduction to calculate our gradients
+ thorugh blocks and these blocks help us later update our w and b per epoch iteration
+
+ linear model y_hat = 3x + 2 from 
 
 MSE = 1/n * summation((y - y_pred)^2)
 y hat = w * x + b
@@ -166,7 +172,7 @@ int main()
     //number of blocks needed to cover all threads, we round up to ensure we have enough blocks for all threads
     //almost like doing a ceil_function, but bcs integers truncate we need to add BLOCK_SIZE-1 to ensure we round up when we divide by BLOCK_SIZE
     //instead of 3.99 we need to make sure we have 4.05 to truncate the decimal and get 4 blocks instead of 3
-    int num_blocks = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    int num_blocks = (n + BLOCK_SIZE - 1) / BLOCK_SIZE; //391
 
     //Allocating and filling cpu memory
     float *h_x = (float*)malloc(bytes);
@@ -176,40 +182,50 @@ int main()
     //generate synthetic data for training
     for(int i=0; i<n; i++)
     {
-        h_x[i] = (float)i/n;
+        h_x[i] = (float)i/n;// 0/100,00 1/100,00 2/100,00 ... 99,000/100,00
+        //y data that we calculate with our known set w and b
         h_y[i] = TRUE_W * h_x[i] + TRUE_B;// + (((float)rand()/RAND_MAX - 0.5f) * 0.1f);
     }
 
     //allocate gpu memory
     float * d_x;
     float * d_y;
+    //holds partial block sums on gpu
     float * d_partial;
+    //holds the error for weight and bias for each of the 100k x,y pairs
     float * d_grad_w;
     float * d_grad_b;
 
     //allocate bytes on the gpu for d_x,d_y,d_partial,d_grad_w,d_grad_b 
-    //then return the pointer to that memory in d_x, d_y, d_partial, d_grad_w, d_grad_b
+    //then goes to the address of the first parameter, non reference
+    //sets the variable in d_x, d_y, d_partial, d_grad_w, d_grad_b to point to that gpu memory address (not * variable)
     CUDA_CHECK(cudaMalloc(&d_x,bytes));
     CUDA_CHECK(cudaMalloc(&d_y,bytes));
-    CUDA_CHECK(cudaMalloc(&d_partial, num_blocks * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&d_partial, num_blocks * sizeof(float)));//391*4
     CUDA_CHECK(cudaMalloc(&d_grad_w, bytes));
     CUDA_CHECK(cudaMalloc(&d_grad_b, bytes));
 
-    //copy input data from cpu to gpu
+    //copy input data from cpu to gpu that we filled and initialized randomly earlier
     CUDA_CHECK(cudaMemcpy(d_x,h_x,bytes,cudaMemcpyHostToDevice));
     CUDA_CHECK(cudaMemcpy(d_y,h_y,bytes,cudaMemcpyHostToDevice));
 
     //initialize our w and b parameters to 0
+    //starting point
     float w = 0.0f;
     float b = 0.0f;
 
     //prints the training configuration to the console
     printf("Training: Y = %.1f * X + %.1f | N=%d epochs=%d lr=%.4f\n\n", TRUE_W, TRUE_B, N, EPOCHS, LEARNING_RATE);
 
+    //epoch is the full passing of all the avg gradients, for w and b, having been calculated
     for(int epoch = 0; epoch<EPOCHS; epoch++)
     {
+        /*now here we do the first step which is the step of gradient descent for w and b,
+         then we reduce w, then we pass that partial sum of w to the host once its been computed in parallel by the gpu
+         then the block sums arrays with their single index's are all added with our cpu sum helper function
+         the same is done for bias afterwards and sent to host cpu*/
         //launches the gradient descent kernel to compute the gradient contributions for each data point
-        gradient_descent<<<num_blocks, BLOCK_SIZE>>>(d_x,d_y,d_grad_w,d_grad_b,w,b,n);
+        gradient_descent<<<num_blocks, BLOCK_SIZE>>>(d_x,d_y,d_grad_w,d_grad_b,w,b,n);//319,256
 
         //launches the reduction kernel to sum the gradient contributions for w and b across all blocks
         reduce_sum<<<num_blocks, BLOCK_SIZE>>>(d_grad_w, d_partial, n);
@@ -229,11 +245,14 @@ int main()
         //sums the block sums on the cpu to get the final gradient for b, and divides by n to get the average gradient
         float grad_b = cpu_sum(h_partial,num_blocks) / n;
 
+        /*this is where we would update our w and b instead of 0 it would be a new 
+        value we continually update until all epochs have passed
+        we use our new grad_w and new grad_b to update */
         //updates parameters w and b using the computed gradients and the learning rate
-        w -= LEARNING_RATE * grad_w;
-        b -= LEARNING_RATE * grad_b;
+        w -= LEARNING_RATE * grad_w;//w = w - lr * grad_w
+        b -= LEARNING_RATE * grad_b;//w = w - lr * grad_b
 
-        //prints the current epoch and the values of w and b every 50 epochs and on the last epoch
+        //prints the current epoch and the values of w and b every 50 epochs
         if(epoch % 50 == 0 || epoch == EPOCHS -1)
         {
             printf("[Epoch %3d] w=%.5f b=%.5f\n", epoch, w, b);
