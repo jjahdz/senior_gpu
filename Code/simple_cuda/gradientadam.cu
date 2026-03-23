@@ -19,7 +19,7 @@ using namespace std;
 #define N 100000 //number of data points/training samples 100k, means we will have arrays of size 100k for x and y
 #define EPOCHS 500 //number of training iterations, or how many times we will update our model parameters w and b
 #define BLOCK_SIZE 256 //number of threads per block
-#define LEARNING_RATE 0.001f //0.5f
+#define LEARNING_RATE 0.0001f//0.5f//0.01f 
 //These are the values we used to generate our data, and the values we are trying to learn with our model through training
 //Y = 3x + 2 + noise, so the true weight is 3 and the true bias is 2
 #define TRUE_W 3.0f //true weight for synthetic data
@@ -178,7 +178,7 @@ int main()
     for(int i=0; i<n; i++)
     {
         h_x[i] = (float)i/n;
-        h_y[i] = TRUE_W * h_x[i] + TRUE_B;// + (((float)rand()/RAND_MAX - 0.5f) * 0.1f);
+        h_y[i] = h_y[i] = TRUE_W * h_x[i] + TRUE_B + (((float)rand()/RAND_MAX - 0.5f) * 0.5f);//TRUE_W * h_x[i] + TRUE_B;// + (((float)rand()/RAND_MAX - 0.5f) * 0.1f);
     }
 
     //allocate gpu memory
