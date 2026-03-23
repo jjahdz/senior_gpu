@@ -152,16 +152,30 @@ int main()
 {
     int n=N;
     size_t bytes = n * sizeof(float);
+    //process 256 points in groups of 256
+    //goes through the gradient descent and reduce sum
+    //stores the block avg
     int batch_size = 256;
     int points_per_batch = batch_size;
     int blocks_per_batch = 1;
-    // 1. Initialize Adam variables outside the loops
+    //Adam variables
+    //first and second moments m_w,v_w,m_b,v_b
     float m_w = 0.0f, v_w = 0.0f;
     float m_b = 0.0f, v_b = 0.0f;
+    //decides how much of the previous direction to keep
+    //set to keep 90% of previous data and 10% of current gradient
+    //limits noisy outliers
     float beta1 = 0.9f;
+    //scales the learning rate
+    //0.999 creates smoother traversal and ignores jumpy 
+    //mini batch outliers compared to beta2 = 0.9
     float beta2 = 0.999f;
+    //ensures no 0 division while keeping the denominator for 
+    //sqrt(v) small enough to not have a large enough impact
     float eps = 1e-8f;
+    //00keeps the daisy as smooth as possible
     float weight_decay = 0.01f; // The "W" in AdamW
+    //corrects bias accordingly
     int timestep = 0;
 
     //number of blocks needed to cover all threads, we round up to ensure we have enough blocks for all threads
@@ -224,12 +238,17 @@ int main()
             //sums the block sums on the cpu to get the final gradient for w, and divides by n to get the average gradient
             float grad_w = h_partial[0] / points_per_batch;
 
+            //take 90% of our old directions and add the new 10%
             m_w = beta1 * m_w + (1.0f - beta1) * grad_w;
+            //add the squared current gradient
             v_w = beta2* v_w + (1.0f - beta2) * (grad_w * grad_w);
 
+            //calculates the first moment
             float m_v_hat = m_w / (1.0f - powf(beta1, timestep));
+            //calculates the second moment
             float v_w_hat = v_w / (1.0f - powf(beta2, timestep));
 
+             //updates the weight 
             w -= LEARNING_RATE * (m_v_hat / (sqrtf(v_w_hat) + eps) + weight_decay * w);
 
             //launches the reduction kernel to sum the gradient contributions for w and b across all blocks
@@ -246,7 +265,7 @@ int main()
             float m_b_hat = m_b / (1.0f - (powf(beta1,timestep)));
             float v_b_hat = v_b / (1.0f - powf(beta2,timestep));
 
-            //updates parameters w and b using the computed gradients and the learning rate
+            //updates the bias 
             b -= LEARNING_RATE * (m_b_hat / (sqrtf(v_b_hat) + eps) + weight_decay * b);
 
         }
