@@ -152,6 +152,9 @@ int main()
 {
     int n=N;
     size_t bytes = n * sizeof(float);
+    //process 256 points in groups of 256
+    //goes through the gradient descent and reduce sum
+    //stores the block avg
     int batch_size = 256;
     int points_per_batch = batch_size;
     int blocks_per_batch = 1;
@@ -201,12 +204,19 @@ int main()
 
     for(int epoch = 0; epoch<EPOCHS; epoch++)
     {
+        //iteration of the groups of 256
+        //continuously adding up to our total threads n
         for(int i=0; i<n; i+= points_per_batch)
         {
             //launches the gradient descent kernel to compute the gradient contributions for each data point
+            //instead of passing the whole array as we did before for n
+            //we passing our starting point 
+            //since now we're moving in groups of 256 we're passing the start of the next gorup of 256
             gradient_descent<<<blocks_per_batch, BLOCK_SIZE>>>(d_x + i, d_y + i, d_grad_w, d_grad_b, w, b, points_per_batch);
 
             //launches the reduction kernel to sum the gradient contributions for w and b across all blocks
+            //change from num_blocks to blocks_per_batch
+            //changes from 391 blocks for n to 1 block for 256 data points
             reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_w, d_partial, points_per_batch);
 
             //copies the block sums from the gpu to the cpu so we can finish summing them to get the final gradient for w
@@ -220,6 +230,7 @@ int main()
             //copies the block sums from the gpu to the cpu so we can finish summing them to get the final gradient for b
             CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
             //sums the block sums on the cpu to get the final gradient for b, and divides by n to get the average gradient
+            //starts at the start of the next 256th block aka h_partial [0]
             float grad_b = h_partial[0] / points_per_batch;
 
             //updates parameters w and b using the computed gradients and the learning rate
