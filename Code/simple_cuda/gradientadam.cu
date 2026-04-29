@@ -253,6 +253,7 @@ int main()
 
             //launches the reduction kernel to sum the gradient contributions for w and b across all blocks
             reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_b, d_partial, points_per_batch);
+            
 
             //copies the block sums from the gpu to the cpu so we can finish summing them to get the final gradient for b
             CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));

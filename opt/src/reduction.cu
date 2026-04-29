@@ -1,4 +1,8 @@
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <cuda_runtime.h>
 __global__ void gaf_kernel
 (
     float *g_a,
