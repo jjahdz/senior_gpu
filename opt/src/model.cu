@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <cuda_runtime.h>
-
+#include "model.h"
 __global__ void gradient_descent(
     //ex:arrays of different hours studied for test scores
      //input array of x values on (GPU MEMORY),kenrnel will read from this array
@@ -16,7 +16,7 @@ __global__ void gradient_descent(
     float *grad_b,
     float *grad_c, 
     //array to store the gradient error values for b at index i
-    float *grad_bias,
+    float *grad_d,
     //current model weight
     //current multiplier 
     //maybe each hour is worth 5 points, so w = 5
@@ -26,7 +26,7 @@ __global__ void gradient_descent(
      //current model bias
      //starting point
      //maybe even if you study 0 hrs you still get 20 poitns, so b = 20
-    float bias,
+    float d,
     //number of data points x,y pairs
     int n 
 )
@@ -51,9 +51,9 @@ __global__ void gradient_descent(
     float error = y_hat - Y[i]; //error for this data point (ŷ - y)
     //stores the weights output error contribution for current set of points x,y
     grad_a[i] = error * x3;
-    grad_b[i] = error * x2[i];
+    grad_b[i] = error * x2;
     grad_c[i] = error * x;
     //stores the bias output error contribution for current set of points x,y
-    grad_bias[i] = error;
+    grad_d[i] = error;
 
 }

@@ -4,8 +4,10 @@
 #include <math.h>
 #include <cuda_runtime.h>
 #include "model.h"
-#include "reduce.h"
+#include "reduction.h"
 #include "adamw.h"
+#include "data_gen.h"
+#include "cuda_check.h"
 int main()
 {
     int n=N;
@@ -45,8 +47,6 @@ int main()
 
     //Allocating and filling cpu memory
     float *h_x = (float*)malloc(bytes);
-    //float *h_x2 = (float*)malloc(bytes);
-    //float *h_x3 = (float*)malloc(bytes);
     float *h_y = (float*)malloc(bytes);
     float *h_partial = (float*)malloc(num_blocks * sizeof(float));
 
@@ -54,8 +54,6 @@ int main()
 
     //allocate gpu memory
     float * d_x;
-    //float * d_x2;
-    //float * d_x3;
     float * d_y;
     float * d_partial;
     float * d_grad_a;
@@ -75,10 +73,11 @@ int main()
     CUDA_CHECK(cudaMalloc(&d_grad_c, bytes));
     CUDA_CHECK(cudaMalloc(&d_grad_d, bytes));
 
+    //data fill/
+    data_gen(h_x,h_y,n);
+
     //copy input data from cpu to gpu
     CUDA_CHECK(cudaMemcpy(d_x,h_x,bytes,cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpy(d_x2,h_x2,bytes,cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpy(d_x3,h_x3,bytes,cudaMemcpyHostToDevice));
     CUDA_CHECK(cudaMemcpy(d_y,h_y,bytes,cudaMemcpyHostToDevice));
 
     //initialize our w and b parameters to 0
@@ -87,8 +86,8 @@ int main()
     float c = 0.0f;
     float d = 0.0f;
 
-    //prints the training configuration to the console
-    printf("Training: Y = %.1f * X + %.1f | N=%d epochs=%d lr=%.4f\n\n", TRUE_W, TRUE_B, N, EPOCHS, LEARNING_RATE);
+    printf("Training: Y = %.1fx^3 + %.1fx^2 + %.1fx + %.1f | N=%d epochs=%d lr=%.4f\n\n",
+       TRUE_A, TRUE_B, TRUE_C, TRUE_BIAS, N, EPOCHS, LEARNING_RATE);
 
     for(int epoch = 0; epoch<EPOCHS; epoch++)
     {
@@ -107,83 +106,53 @@ int main()
                                                             c,
                                                             d,
                                                              points_per_batch);
-            //launches the reduction kernel to sum the gradient contributions for w and b across all blocks
             reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_a, d_partial, points_per_batch);
-            reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_b, d_partial, points_per_batch);
-            reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_c, d_partial, points_per_batch);
-            reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_d, d_partial, points_per_batch);
-
-            //copies the block sums from the gpu to the cpu so we can finish summing them to get the final gradient for w
             CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
-
             //sums the block sums on the cpu to get the final gradient for w, and divides by n to get the average gradient
             float grad_a = h_partial[0] / points_per_batch;
-            float grad_b = h_partial[0] / points_per_batch;
-            float grad_c = h_partial[0] / points_per_batch;
-            
- m_a = beta1 * m_a + (1.0f - beta1) * grad_a;
-        v_a = beta2 * v_a + (1.0f - beta2) * grad_a * grad_a;
-        float m_a_hat = m_a / (1.0f - powf(beta1, timestep));
-        float v_a_hat = v_a / (1.0f - powf(beta2, timestep));
-        a -= LEARNING_RATE * (m_a_hat / (sqrtf(v_a_hat) + eps) + weight_decay * a);
-        
-        // b
-        m_b = beta1 * m_b + (1.0f - beta1) * grad_b;
 
-            adamw_update_kernel(&a,)
-            adamw__global__ void adam_update_kernel
-(
-    float *grad,
-    float *params,
-    float *m,
-    float *v,
-    float beta1,
-    float beta2,
-    float weight_decay,
-    float lr,
-    float eps,
-    int timestep,
-    int n
-) 
-
-            //launches the reduction kernel to sum the gradient contributions for w and b across all blocks
-            reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_a, d_partial, points_per_batch);
             reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_b, d_partial, points_per_batch);
-            reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_c, d_partial, points_per_batch);
-            reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_d, d_partial, points_per_batch);
-
-            //copies the block sums from the gpu to the cpu so we can finish summing them to get the final gradient for b
             CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
-            //sums the block sums on the cpu to get the final gradient for b, and divides by n to get the average gradient
+            
+            //sums the block sums on the cpu to get the final gradient for w, and divides by n to get the average gradient
+            float grad_b = h_partial[0] / points_per_batch;
+
+            reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_c, d_partial, points_per_batch);
+            CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
+            //sums the block sums on the cpu to get the final gradient for w, and divides by n to get the average gradient
+            float grad_c = h_partial[0] / points_per_batch;
+
+            reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_d, d_partial, points_per_batch);
+            CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
+            //sums the block sums on the cpu to get the final gradient for w, and divides by n to get the average gradient
             float grad_d = h_partial[0] / points_per_batch;
 
-            m_d = beta1 * m_d + (1.0f - beta1) * grad_d;
-            v_d = beta2 * v_d + (1.0f - beta2) * (grad_d * grad_d);
 
-            float m_d_hat = m_d / (1.0f - (powf(beta1,timestep)));
-            float v_d_hat = v_d / (1.0f - powf(beta2,timestep));
-
-            //updates the bias 
-            d -= LEARNING_RATE * (m_d_hat / (sqrtf(v_d_hat) + eps) + weight_decay * d);
+            adamw_update(&a,grad_a,&m_a,&v_a,beta1,beta2,weight_decay,LEARNING_RATE,eps,timestep);
+            adamw_update(&b,grad_b,&m_b,&v_b,beta1,beta2,weight_decay,LEARNING_RATE,eps,timestep);
+            adamw_update(&c,grad_c,&m_c,&v_c,beta1,beta2,weight_decay,LEARNING_RATE,eps,timestep);
+            adamw_update(&d,grad_d,&m_d,&v_d,beta1,beta2,weight_decay,LEARNING_RATE,eps,timestep);
 
         }
         //prints the current epoch and the values of w and b every 50 epochs and on the last epoch
         if(epoch % 50 == 0 || epoch == EPOCHS -1)
         {
-            printf("[Epoch %3d] w=%.5f b=%.5f\n", epoch, w, b);
+            printf("[Epoch %3d] a=%.5f b=%.5f c=%.5f d=%.5f\n", epoch, a, b, c, d);
         }
     }
 
     //prinig the final learned parameters w and b after training
     printf("\n---- Results ----\n");
-    printf("Learned:  w=%.5f  b=%.5f\n", w, b);
-    printf("True:     w=%.5f  b=%.5f\n", TRUE_W, TRUE_B);
-    printf("Error:    w=%.6f  b=%.6f\n", fabs(w-TRUE_W), fabs(b-TRUE_B));
+    printf("Learned: a=%.5f b=%.5f c=%.5f d=%.5f\n", a, b, c, d);
+    printf("True:    a=%.5f b=%.5f c=%.5f d=%.5f\n", TRUE_A, TRUE_B, TRUE_C, TRUE_BIAS);
+    printf("Error:   a=%.6f b=%.6f c=%.6f d=%.6f\n",
+        fabsf(a-TRUE_A), fabsf(b-TRUE_B),
+        fabsf(c-TRUE_C), fabsf(d-TRUE_BIAS));
 
     //free gpu memory
-    free(h_x); free(h_x2); free(h_x3); free(h_y); free(h_partial);
-    cudaFree(d_x); free(d_x2); free(d_x3); cudaFree(d_y); cudaFree(d_partial); cudaFree(d_grad_a); cudaFree(d_grad_b);
-    cudaFree(d_grad_c); cudaFree(d_grad_b); 
+    free(h_x); free(h_y); free(h_partial);
+    cudaFree(d_x); cudaFree(d_y); cudaFree(d_partial);
+    cudaFree(d_grad_a); cudaFree(d_grad_b); cudaFree(d_grad_c); cudaFree(d_grad_d);
 
     return 0;
 }

@@ -1,11 +1,12 @@
-void gradient_descent(
+#pragma once
+#define N             1024
+#define EPOCHS        1000
+#define BLOCK_SIZE    256
+#define LEARNING_RATE 0.0010f
+__global__ void gradient_descent(
     //ex:arrays of different hours studied for test scores
      //input array of x values on (GPU MEMORY),kenrnel will read from this array
     const float * X,
-    //
-    const float * X2, 
-    //
-    const float * X3,
     //ex:arrays of different test scores for the hours studied
     //target array of y values on (GPU MEMORY)
     const float * Y,
@@ -14,7 +15,7 @@ void gradient_descent(
     float *grad_b,
     float *grad_c, 
     //array to store the gradient error values for b at index i
-    float *grad_bias,
+    float *grad_d,
     //current model weight
     //current multiplier 
     //maybe each hour is worth 5 points, so w = 5
@@ -24,7 +25,7 @@ void gradient_descent(
      //current model bias
      //starting point
      //maybe even if you study 0 hrs you still get 20 poitns, so b = 20
-    float bias,
+    float d,
     //number of data points x,y pairs
     int n 
-)
+);
