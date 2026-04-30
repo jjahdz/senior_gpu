@@ -3,8 +3,70 @@
 #include <stdlib.h>
 #include <math.h>
 #include <cuda_runtime.h>
-__global__ void gaf_kernel
+#include "reduction.h"
+__global__ void reduce_sum
 (
+    //input array of gradient contributions
+    //either grad_w or grad_b of size N
+    //these are the arrays that have been filled with the 
+    //previously calcualted gradient error for points x,y
+    float *in, 
+    //output array to store the block sums
+    float *out, 
+    //N = 100k
+    int n
+)
+{
+    //global memory lives in DRAM, slow to access
+    //shared memory lives on the GPU chip, much faster to access
+    //shared memory is shared amongst threads in the same block
+    //each block gets its own smem array sized 256
+    __shared__ float smem[BLOCK_SIZE];
+
+    //local thread ID within the block (0-255)
+    int tid = threadIdx.x; 
+    //global thread ID across all blocks
+    int idx = blockIdx.x * blockDim.x + tid;
+    //copies the value from the input array in global memory 
+    //to the shared memory array at the index of the local thread ID
+    //ex: system[0] = in[0], smem[1] = in[1], until we go through all values [i] for
+    if(idx < n)
+    {
+        //copies the value from input array to smem array
+        smem[tid] = in[idx];
+    }
+    else
+    {   
+        //if a thread goes over 100k data points, we set its value in smem to 0 so it doesnt contribute to the sum
+        smem[tid] = 0.0f;
+    }
+
+    //waits for all threads in the block to reach this point before any thread continues
+    __syncthreads();
+
+
+    //parallel reduction to sum the values in the smem array
+    //by folding and adding pairs of values, we can sum the array in log₂(BLOCK_SIZE) steps
+    //s>>=1 means s = s/2, so we start with s=128 and then we half it to 64,32,16,8,4,3,2,1
+    //so instead of 0+128 itd be 0+6
+    for(int s = blockDim.x / 2; s>0; s >>=1)
+    {
+        if(tid<s)
+        {
+            smem[tid] = smem[tid] + smem[tid + s];
+        }
+        __syncthreads();
+    }
+
+    //after reduction, the first thread (tid=0) contains the sum of this block
+    //so we write this blocks sum to the output array in global mem at this blocks index
+    if(tid == 0)
+    {
+        out[blockIdx.x]=smem[0];
+    }
+
+}
+/*(
     float *g_a,
     float *g_b,
     float *final_dot,
@@ -57,3 +119,4 @@ __global__ void gaf_kernel
 
 }
 
+*/
